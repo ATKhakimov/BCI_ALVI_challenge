@@ -14,7 +14,6 @@ import numpy as np
 
 from einops import rearrange
 
-
 from scipy.spatial.transform import Rotation, Slerp
 from torch.utils.data import Dataset
 
@@ -22,9 +21,11 @@ from simple_parsing import Serializable
 # Custom
 
 from .quats_and_angles import get_angles
+
 logger = logging.getLogger(__name__)
 
-# Table of contents 
+
+# Table of contents
 # 1. Works with quats.
 # 2. Filters dataset's folders
 # 3. Interpolation functions
@@ -39,6 +40,7 @@ def multiply_quant(q1, q2):
     r2 = R.from_quat(q2)
     return (r1 * r2).as_quat()
 
+
 def inverse_rotations(sample):
     ### normalisation if needed.
     quat_base = sample[0]
@@ -49,6 +51,7 @@ def inverse_rotations(sample):
 
     return quats_new
 
+
 def fix_sign_quats(data):
     """
     [Times, 16, 4]
@@ -56,13 +59,14 @@ def fix_sign_quats(data):
     n_times, n_bones, _ = data.shape
 
     data_tmp = data[:, :, -1].reshape(-1)
-    data_sign = np.where(data_tmp<0, 1., -1.)
+    data_sign = np.where(data_tmp < 0, 1., -1.)
     data_sign = data_sign[..., None]
 
     data_new = data.reshape(-1, 4)
     data_new = data_new * data_sign
     data_new = data_new.reshape(n_times, n_bones, 4)
     return data_new
+
 
 ## Filters dataset's folders
 
@@ -71,6 +75,7 @@ def load_data_from_one_exp(file_path: Union[Path, str]) -> Dict['str', np.ndarra
     with np.load(file_path) as file:
         exp_data = dict(file)
     return exp_data
+
 
 ## Interpolation functions
 def interpolate_quats_for_one_exp(data: Dict[str, np.ndarray],
@@ -111,7 +116,8 @@ def interpolate_quats_for_one_exp(data: Dict[str, np.ndarray],
     new_left_idx = np.argmax(myo_timestamps >= masked_vr_timestamps[0])
     new_right_idx = myo_timestamps.shape[0] - np.argmax(np.flip([myo_timestamps <= masked_vr_timestamps[-1]]))
     slice_by_n_values = (myo_timestamps.shape[0] - new_right_idx) + new_left_idx
-    logger.debug(f'Slice myo_timestamps and all data from {new_left_idx} to {new_right_idx} by {slice_by_n_values} elements')
+    logger.debug(
+        f'Slice myo_timestamps and all data from {new_left_idx} to {new_right_idx} by {slice_by_n_values} elements')
 
     if quat_interpolate_method == 'slerp':
         # iterate over each bones and append results to list 'interpolated_quats'
@@ -137,6 +143,7 @@ def interpolate_quats_for_one_exp(data: Dict[str, np.ndarray],
 
     return sliced_data
 
+
 def strip_nans_for_one_exp(data: Dict[str, np.ndarray]) -> Tuple[Dict[str, np.ndarray], int, int]:
     '''
     Slice all array in dicts like arr[left_idx: right_idx + 1],
@@ -154,7 +161,7 @@ def strip_nans_for_one_exp(data: Dict[str, np.ndarray]) -> Tuple[Dict[str, np.nd
     # find first and most latest positions with not np.nan values
     not_non_position = np.argwhere(~np.isnan(vr_timestamps))
 
-    if len(not_non_position) ==0:
+    if len(not_non_position) == 0:
         return None, None, None
 
     left_idx = not_non_position[0][0]
@@ -167,6 +174,7 @@ def strip_nans_for_one_exp(data: Dict[str, np.ndarray]) -> Tuple[Dict[str, np.nd
     stripped_data = {k: v[left_idx: right_idx + 1] for k, v in data.items()}
     return stripped_data, left_idx, right_idx
 
+
 def calc_probas(iterable: Sequence[Sequence]) -> list:
     lens = []
     for child_iter in iterable:
@@ -174,8 +182,10 @@ def calc_probas(iterable: Sequence[Sequence]) -> list:
     probas = np.array(lens) / sum(lens)
     return probas
 
+
 def calc_stripped_len(sequence: Sequence, window_size: int) -> int:
     return int((len(sequence) // window_size) * window_size)
+
 
 def find_first_nan_index(arr: np.ndarray) -> Union[int, None]:
     if arr.ndim != 1:
@@ -186,6 +196,7 @@ def find_first_nan_index(arr: np.ndarray) -> Union[int, None]:
     else:
         return nan_positions[0]
 
+
 def find_nonan_index_from_start(arr: np.ndarray) -> Union[int, None]:
     if arr.ndim != 1:
         raise ValueError(f'arr must be one dimentional but it have {arr.ndim}')
@@ -194,6 +205,7 @@ def find_nonan_index_from_start(arr: np.ndarray) -> Union[int, None]:
         return None
     else:
         return nonan_positions[0]
+
 
 def find_nonan_index_from_end(arr: np.ndarray) -> Union[int, None]:
     if arr.ndim != 1:
@@ -204,11 +216,13 @@ def find_nonan_index_from_end(arr: np.ndarray) -> Union[int, None]:
     else:
         return nonan_positions[-1]
 
+
 def find_indexes_for_strip_nans(arr: np.ndarray) -> Tuple[int, int]:
     not_non_position = np.argwhere(~np.isnan(arr))
     left_idx = not_non_position[0][0]
     right_idx = not_non_position[-1][0]
     return left_idx, right_idx
+
 
 def get_dict_of_slerps(timestamps: np.ndarray,
                        hand_quaternions: np.ndarray) -> Dict[int, Slerp]:
@@ -227,6 +241,7 @@ def get_dict_of_slerps(timestamps: np.ndarray,
         dict_of_slerps[bone_idx] = Slerp(timestamps_without_nans, _rotations)
     return dict_of_slerps
 
+
 def get_interpolated_hand(timestamps: Union[float, Sequence], dict_of_slerps: Dict[int, Slerp]) -> np.ndarray:
     '''
     '''
@@ -236,6 +251,7 @@ def get_interpolated_hand(timestamps: Union[float, Sequence], dict_of_slerps: Di
         interpolated_quats.append(_quats)
     interpolated_quats = np.stack(interpolated_quats, axis=1)
     return interpolated_quats
+
 
 ## Functions for real time "smart" sampling
 def petyaslava_distribution_function(i: int, d: int, max_idx: int) -> float:
@@ -261,6 +277,7 @@ def petyaslava_distribution_function(i: int, d: int, max_idx: int) -> float:
     else:
         return i * H / (max_idx - d)
 
+
 def sashapetyaslava_distribution_function(i: int, d: int, max_idx: int) -> float:
     '''
     p(i) == 0
@@ -284,27 +301,30 @@ def sashapetyaslava_distribution_function(i: int, d: int, max_idx: int) -> float
     else:
         return h1
 
+
 def get_sps_probs(d, max_idx):
     # if d >= max_idx:
     #     return np.ones(max_idx+1) / (max_idx+1)
-    buf = np.ones(max_idx+1)
+    buf = np.ones(max_idx + 1)
     h1 = 0.5 / (max_idx - d + 1)
     h2 = 0.5 / d
     buf[:max_idx - d + 1] = h1
     buf[max_idx - d + 1:] = h2
     return buf
 
+
 def sample_from_petyaslava(d: int, max_idx: int) -> int:
     ws = range(0, max_idx + 1)
     probas = [petyaslava_distribution_function(i, d=d, max_idx=max_idx) for i in ws]
     return random.choices(ws, probas)[0]
+
 
 def sample_from_sashapetyaslava(d: int, max_idx: int) -> int:
     # print(max_idx)
     if d >= max_idx + 1:
         return np.random.choice(max_idx + 1, replace=True, size=1)[0]
     probas = get_sps_probs(d=d, max_idx=max_idx)
-    return np.random.choice(max_idx + 1, p = probas, replace=True, size=1)[0]
+    return np.random.choice(max_idx + 1, p=probas, replace=True, size=1)[0]
 
 
 class VRHandMYODatasetRealtime(Dataset):
@@ -333,9 +353,7 @@ class VRHandMYODatasetRealtime(Dataset):
     # bash script to git pull (second pc)
     # ORRR via sockets
 
-
     # dont use dataloader
-
 
     # inf) refactoring
 
@@ -359,7 +377,7 @@ class VRHandMYODatasetRealtime(Dataset):
                  use_angles: bool = True,
                  debug_indexes: bool = False) -> NoReturn:
 
-        self.probas = None #distribution for sampling on each epoch
+        self.probas = None  #distribution for sampling on each epoch
         self.samples_per_epoch = samples_per_epoch  #defines frequency of dataset updating in training loop
         self.use_angles = use_angles
         self.myo_transform = myo_transform
@@ -394,6 +412,7 @@ class VRHandMYODatasetRealtime(Dataset):
         self.append_counter = 0
 
         self.debug_indexes = debug_indexes
+
     def _out_index_to_input_index(self, index: int) -> int:
         input_index = (index + self.first_amount_vr_out_ts_skipped) * self.downsample_rate
         # print(input_index)
@@ -438,8 +457,6 @@ class VRHandMYODatasetRealtime(Dataset):
         else:
             data = {key: [value] for key, value in self.raw_data.items() if key != 'data_armband'}
 
-
-
         for i, p in enumerate(to_append):
             with np.load(p) as file:
                 new_data = dict(file)
@@ -467,15 +484,15 @@ class VRHandMYODatasetRealtime(Dataset):
                     _to_append = _to_append[quaternion_slice]
                     # concatenating armband data as one of bones (last)
                     _to_append = np.concatenate((_to_append,
-                                                   new_data['data_armband'].reshape(len(new_data['data_armband']), 1, 4)),
-                                                 axis = 1)
+                                                 new_data['data_armband'].reshape(len(new_data['data_armband']), 1, 4)),
+                                                axis=1)
                     # print(_to_append.shape)
                     # print(new_data['data_armband'].shape)
-            #         np.concatenate(
-            # (self.raw_data['data_vr'],
-            #  self.raw_data['data_armband'].reshape(len(self.raw_data['data_vr']), 1, 4)),
-            # axis = 1 )
-                    #
+                #         np.concatenate(
+                # (self.raw_data['data_vr'],
+                #  self.raw_data['data_armband'].reshape(len(self.raw_data['data_vr']), 1, 4)),
+                # axis = 1 )
+                #
 
                 # if key == 'data_wrist':
                 # # no preproc needed appending data wrist
@@ -507,15 +524,16 @@ class VRHandMYODatasetRealtime(Dataset):
         right_nonan_idx += _left_idx
         left_interpolation_ts = self.raw_data['vr_ts'][left_nonan_idx]
         right_interpolation_ts = self.raw_data['vr_ts'][right_nonan_idx]
-        dict_of_slerps = get_dict_of_slerps(timestamps=self.raw_data['vr_ts'][left_nonan_idx: right_nonan_idx+1],
-                                            hand_quaternions=self.raw_data['data_vr'][left_nonan_idx: right_nonan_idx+1])
+        dict_of_slerps = get_dict_of_slerps(timestamps=self.raw_data['vr_ts'][left_nonan_idx: right_nonan_idx + 1],
+                                            hand_quaternions=self.raw_data['data_vr'][
+                                                             left_nonan_idx: right_nonan_idx + 1])
 
         print(f'{left_interpolation_ts=}, {right_interpolation_ts=}')
         downsample_slice = slice(None, None, self.downsample_rate)
         # vr_out_ts_old_len = len(self.vr_out_ts)
 
-        vr_out_ts_old_len = len(self.vr_out_data) if self.vr_out_data is not None else 0 # ind in 25fps
-        self.vr_out_ts = self.raw_data['myo_ts'][downsample_slice]   # ind in 25 fps
+        vr_out_ts_old_len = len(self.vr_out_data) if self.vr_out_data is not None else 0  # ind in 25fps
+        self.vr_out_ts = self.raw_data['myo_ts'][downsample_slice]  # ind in 25 fps
         new_elements_amount = len(self.vr_out_ts) - vr_out_ts_old_len  # this is len >=0 always
         new_vr_out_ts_elements = self.vr_out_ts[-new_elements_amount:] if new_elements_amount else []
 
@@ -524,7 +542,8 @@ class VRHandMYODatasetRealtime(Dataset):
                 raise ValueError('vr_out_ts_element is nan, which means myo_timestamps contains nan')
 
             if not (left_interpolation_ts <= vr_out_ts_element):
-                logger.warning(f"New interpolation timestamps is out of range ({left_interpolation_ts=} <= {vr_out_ts_element=})")
+                logger.warning(
+                    f"New interpolation timestamps is out of range ({left_interpolation_ts=} <= {vr_out_ts_element=})")
                 self.first_amount_vr_out_ts_skipped += 1
                 if self.append_counter == 0:
                     print(f'YAAAABAAAAATTTT {self.append_counter=}')
@@ -562,21 +581,20 @@ class VRHandMYODatasetRealtime(Dataset):
             if have_armband:
                 q_wrist_new = rearrange(q_wrist_new, 'q -> 1 1 q')
                 q_wrist_new = fix_sign_quats(q_wrist_new)
-                q_wrist_new = q_wrist_new[0] # now shape is (1, 4)
+                q_wrist_new = q_wrist_new[0]  # now shape is (1, 4)
                 if self.vr_out_data_wrist is not None:
                     self.vr_out_data_wrist = np.append(self.vr_out_data_wrist, q_wrist_new, axis=0)
                 else:
                     self.vr_out_data_wrist = q_wrist_new
 
-
-            interpolated_hand_angles = get_angles(interpolated_hand)  # output shape is (1, 20), input shape is (1, 16, 4)
+            interpolated_hand_angles = get_angles(
+                interpolated_hand)  # output shape is (1, 20), input shape is (1, 16, 4)
             if self.vr_out_data_angles is not None:
                 self.vr_out_data_angles = np.append(self.vr_out_data_angles, interpolated_hand_angles, axis=0)
             else:
                 self.vr_out_data_angles = interpolated_hand_angles
 
         self.append_counter += 1
-
 
     def __len__(self) -> int:
         vr_max_ind = len(self.vr_out_data)
@@ -596,12 +614,11 @@ class VRHandMYODatasetRealtime(Dataset):
         print(f'should be the same {self.first_amount_vr_out_ts_skipped=}')
         myo_idx = self._out_index_to_input_index(vr_idx)
         vr_len = len(self.vr_out_data)
-        len_of_new_data_vr = vr_len - vr_idx - 1 #TODO think of -1
+        len_of_new_data_vr = vr_len - vr_idx - 1  #TODO think of -1
         len_of_new_data_myo = len_of_new_data_vr * self.downsample_rate
         print(f'{vr_idx=}')
         print(f'{myo_idx=}')
         print(f'{vr_len=}')
-
 
         if len_of_new_data_vr % self.output_window_size != 0:
             len_of_new_data_vr = int((len_of_new_data_vr // self.output_window_size) * self.output_window_size)
@@ -609,13 +626,12 @@ class VRHandMYODatasetRealtime(Dataset):
         print(f'{len_of_new_data_vr=}')
         print(f'{len_of_new_data_myo=}')
 
-
         assert len(self.vr_out_data_angles) >= vr_idx + len_of_new_data_vr
         if self.use_angles:
-            vr_slice = self.vr_out_data_angles[vr_idx : vr_idx + len_of_new_data_vr]
+            vr_slice = self.vr_out_data_angles[vr_idx: vr_idx + len_of_new_data_vr]
             # vr_sample = rearrange(vr_sample, 't a -> a t')
         else:
-            vr_slice = self.vr_out_data[vr_idx : vr_idx + len_of_new_data_vr]
+            vr_slice = self.vr_out_data[vr_idx: vr_idx + len_of_new_data_vr]
             # vr_sample = rearrange(vr_sample, 't b q -> b q t')
         vr_slice = vr_slice.astype('float32')
         raw_myo_len = len(self.raw_data["data_myo"])
@@ -657,23 +673,21 @@ class VRHandMYODatasetRealtime(Dataset):
 
     def _get_random_left_out_index_from_probas(self):
         max_idx = self._get_last_left_out_index()
-        return np.random.choice(max_idx + 1, p = self.probas, replace=True, size=1)[0]
-
+        return np.random.choice(max_idx + 1, p=self.probas, replace=True, size=1)[0]
 
     def set_sampling_distribution(self, probas):
         max_index = self._get_last_left_out_index()
         print('CHANGING DISTRIBUTION')
         print(f'{probas.shape[0]=}, {max_index+1=}')
-        assert probas.shape[0] == max_index+1
+        assert probas.shape[0] == max_index + 1
         self.random_sampling = 'custom'
         self.probas = probas
-
 
     def __getitem__(self, idx: int):
         if self.random_sampling == 'last':
             # always sample last affordable element
             output_random_index = self._get_last_left_out_index()
-        elif  self.random_sampling == 'petyaslava':
+        elif self.random_sampling == 'petyaslava':
             # sampling from petyaslava distribution
             output_random_index = self._get_random_ps_out_index()
         elif self.random_sampling == 'sashapetyaslava':
@@ -683,8 +697,6 @@ class VRHandMYODatasetRealtime(Dataset):
             output_random_index = self._get_random_left_out_index_from_probas()
         else:
             raise ValueError(f'{self.random_sampling} distribution is not valid')
-
-
 
         if self.use_angles:
             vr_sample = self.vr_out_data_angles[output_random_index: output_random_index + self.output_window_size]
@@ -701,7 +713,6 @@ class VRHandMYODatasetRealtime(Dataset):
         else:
             vr_sample_wrist = None
 
-
         input_random_index = self._out_index_to_input_index(output_random_index)
         myo_sample = self.raw_data['data_myo'][input_random_index: input_random_index + self.input_window_size]
         myo_sample = myo_sample.astype('float32')
@@ -715,6 +726,7 @@ class VRHandMYODatasetRealtime(Dataset):
             return myo_sample, vr_sample
         else:
             return myo_sample, vr_sample, vr_sample_wrist
+
 
 class VRHandMYODataset(Dataset):
     """
@@ -731,6 +743,7 @@ class VRHandMYODataset(Dataset):
     - down_sample_target: Factor by which the target data should be downsampled.
     - use_angles: If True, uses angle data as the target, otherwise uses VR data.
     """
+
     def __init__(self,
                  exps_data: List[Dict[str, np.ndarray]],
                  window_size: int,
@@ -739,9 +752,9 @@ class VRHandMYODataset(Dataset):
                  return_support_info: bool = False,
                  transform=None,
                  down_sample_target=None,
-                 use_angles=True, 
-                 path = None) -> NoReturn:
-        
+                 use_angles=True,
+                 path=None) -> NoReturn:
+
         self.exps_data = exps_data
         self.path = path
         self.window_size = window_size
@@ -749,8 +762,8 @@ class VRHandMYODataset(Dataset):
         self.samples_per_epoch = samples_per_epoch
         self.return_support_info = return_support_info
         self.transform = transform
-        self.down_sample_target=down_sample_target
-        self.use_angles=use_angles
+        self.down_sample_target = down_sample_target
+        self.use_angles = use_angles
 
         if self.random_sampling:
             assert self.samples_per_epoch is not None, 'if random_sampling is True samples_per_epoch must be specified'
@@ -779,7 +792,7 @@ class VRHandMYODataset(Dataset):
                                        exp_data: Dict[str, np.ndarray],
                                        idx: int) -> Dict[str, np.ndarray]:
 
-        return {k: v[idx: idx+self.window_size] for k, v in exp_data.items()}
+        return {k: v[idx: idx + self.window_size] for k, v in exp_data.items()}
 
     def __getitem__(self, idx: int) -> Tuple[Dict[str, np.ndarray], dict]:
 
@@ -802,7 +815,6 @@ class VRHandMYODataset(Dataset):
             idx_of_exp = random.choices(range(len(self._exp_choose_probas)), self._exp_choose_probas.tolist(), k=1)[0]
             window_left_idx = int(random.uniform(0, self._max_left_idxs[idx_of_exp]))
             exp_data = self._window_left_idx_to_data_slice(self.exps_data[idx_of_exp], window_left_idx)
-
 
         # INPUT data
         myo = exp_data['data_myo'].astype('float32')
@@ -838,12 +850,12 @@ class VRHandMYODataset(Dataset):
             return myo, target
 
 
-
 ## Function for data processings.
 def process_emg(emg):
     emg = (emg + 128) / 255.
     emg = 2 * emg - 1
     return emg
+
 
 def process_quats(quats):
     quats = quats[:, :, 4:8]  # 4:8 is for mirror hand
@@ -851,14 +863,16 @@ def process_quats(quats):
     quats = fix_sign_quats(quats)  # fix ambiguity of quats because q = -q
     return quats
 
+
 def crop_beginning_data(data, start_crop_idxs):
     if start_crop_idxs != 0:
         logger.warning(f'We assume start_crop_ms == 0 but start_crop_ms == {start_crop_ms}')
-    
+
     data['data_vr'] = data['data_vr'][start_crop_idxs:]
     data['data_myo'] = data['data_myo'][start_crop_idxs:]
     data['myo_ts'] = data['myo_ts'][start_crop_idxs:]
-    return data 
+    return data
+
 
 def adjust_delay_in_exp_data(exp_data, n_crop_idxs):
     # Calculate the number of indices to crop and its absolute value for slicing
@@ -876,8 +890,8 @@ def adjust_delay_in_exp_data(exp_data, n_crop_idxs):
             exp_data[key] = value[-n_crop_idxs:] if key in input_keys else value[:n_crop_idxs]
     return exp_data
 
+
 def process_raw_data_file(path, original_fps, start_crop_ms, delay_ms):
-    
     data = dict(np.load(path))
     data, left_strip_idx, right_strip_idx = strip_nans_for_one_exp(data)
 
@@ -889,8 +903,8 @@ def process_raw_data_file(path, original_fps, start_crop_ms, delay_ms):
 
     data['data_myo'] = process_emg(data['data_myo'])
     data['data_vr'] = process_quats(data['data_vr'])
-    
-    start_crop_idxs = int(start_crop_ms/1000*original_fps)
+
+    start_crop_idxs = int(start_crop_ms / 1000 * original_fps)
     delay_idxs = int(delay_ms / 1000 * original_fps)
 
     data = crop_beginning_data(data, start_crop_idxs)
@@ -898,12 +912,13 @@ def process_raw_data_file(path, original_fps, start_crop_ms, delay_ms):
 
     assert data['data_vr'].shape[0] == data['data_myo'].shape[0], \
         f'lens of data_vr and data_myo are different {data["data_vr"].shape} !=  {data["data_myo"].shape}'
-    
-    return data 
+
+    return data
+
 
 def create_dataset_from_raw_files(data_folder, original_fps, start_crop_ms, delay_ms,
-                                window_size, random_sampling, samples_per_epoch, 
-                                return_support_info, transform, down_sample_target):
+                                  window_size, random_sampling, samples_per_epoch,
+                                  return_support_info, transform, down_sample_target):
     # Loop over files in data dir
     all_paths = sorted(data_folder.glob('*.npz'))
     all_paths = natsorted(all_paths)
@@ -916,12 +931,12 @@ def create_dataset_from_raw_files(data_folder, original_fps, start_crop_ms, dela
         exps_data.append(data)
 
     dataset = VRHandMYODataset(exps_data,
-                                window_size=window_size,
-                                random_sampling=random_sampling,
-                                samples_per_epoch=samples_per_epoch,
-                                return_support_info=return_support_info,
-                                transform = transform,
-                                down_sample_target=down_sample_target)
+                               window_size=window_size,
+                               random_sampling=random_sampling,
+                               samples_per_epoch=samples_per_epoch,
+                               return_support_info=return_support_info,
+                               transform=transform,
+                               down_sample_target=down_sample_target)
 
     print(f'Total len: {len(dataset)}')  # max numbers of different windows over
     return dataset
