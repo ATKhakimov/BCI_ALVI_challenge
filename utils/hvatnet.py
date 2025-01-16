@@ -263,14 +263,14 @@ class HVATNetv3(nn.Module):
         self.n_inp_features = config.n_electrodes
         self.n_channels_out = config.n_channels_out
         self.model_depth = len(config.strides)
-
+        #Нормализуем и мастштабируем аплитуду
         self.tune_module = TuneModule(n_electrodes=config.n_electrodes, temperature=5.0)
 
-        # Change number of features to custom one
+        # Change number of features to custom one - НАСТРАИВАЕМ РАЗМЕРНОСТИ
         self.spatial_reduce = nn.Conv1d(config.n_electrodes, config.n_filters, kernel_size=1, padding='same')
-
+        #Стакаем RESNET блоки в количесестве n_res_blocks (выступает в качестве уменьшителя шума)
         self.denoiser = nn.Sequential(*[SimpleResBlock(config.n_filters, config.kernel_size) for _ in range(config.n_res_blocks)])
-
+        #Для каждого из слоев он накидывает n_blocks_per_layer блоков (сверточных), в каждом из которых n_filters
         self.encoder = AdvancedEncoder(n_blocks_per_layer=config.n_blocks_per_layer,
                                        n_filters=config.n_filters, kernel_size=config.kernel_size,
                                        dilation=config.dilation, strides=config.strides)
